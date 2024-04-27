@@ -1,0 +1,29 @@
+#!/bin/bash
+
+# 定义私网 IP 数组
+private_ips=(172.29.110.255 172.29.110.254 172.29.110.253 172.29.110.252)
+
+# 定义子网前缀
+subnet_prefix="192.168"
+
+# 定义 Traffmonetizer token
+token="tNgYt5IubCsZ2HFEbbpX2Kd9hNmk8Ei1jxfy3HKEmWI="
+
+# 创建 Docker 网络
+for i in "${!private_ips[@]}"; do
+  subnet="${subnet_prefix}.$((33 + i)).0/24"
+  docker network create "my_network_$((i+1))" --driver bridge --subnet "$subnet"
+done
+
+# 配置 iptables 规则
+for i in "${!private_ips[@]}"; do
+  subnet="${subnet_prefix}.$((33 + i)).0/24"
+  iptables -t nat -I POSTROUTING -s "$subnet" -j SNAT --to-source "${private_ips[i]}"
+done
+
+# 启动 Traffmonetizer 容器
+for i in "${!private_ips[@]}"; do
+  docker run -d --network "my_network_$((i+1))" --name "tm_$((i+1))" traffmonetizer/cli_v2 start accept --token "$token"
+done
+
+echo "配置完成。"
